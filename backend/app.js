@@ -1,7 +1,9 @@
 import express from 'express';
+import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io'; 
 import crypto from 'crypto'; 
+import { BlankQuestionBank, ConvertServerQuestionToClientQuestion } from './QuestionBank';
 
 const guests = new Map();
 
@@ -14,49 +16,25 @@ const port = 3000;
 
 const server = http.createServer(app);
 const io = new Server(server,{
+	connectionStateRecovery: {},
 	cors:{
 		origin:"*",
 	}
 }); 
+app.use(cors({
+	origin: '*',          
+	methods: ['GET', 'POST'],
+}));
 
 app.get('/', (req, res) => {
 	res.send('api is running');
 });
 
-var BlankQuestionBank = {
-	Title:"Example Questions",
-	Authour:"Blank",
-	Questions:[
-		{
-			Question:"What is 1+1",
-			CorrectAnswer: "2",
-			IncorrectAnswers: ["6","7","1"],
-		},
-		{
-			Question:"What is 1+1",
-			CorrectAnswer: "2",
-			IncorrectAnswers: ["6","7","1"],
-		},
-		{
-			Question:"What is 1+1",
-			CorrectAnswer: "2",
-			IncorrectAnswers: ["6","7","1"],
-		}
-	]			
-};
 
-const ConvertServerQuestionToClientQuestion = (QuestionObject) =>{
-	return {
-		Question:QuestionObject.Question,
-		Choices: [...QuestionObject.IncorrectAnswers, QuestionObject.CorrectAnswer],
-
-	}
-}
 app.post('/register_guest', (req,res)=>{
 	const guestId = generateGuestId();
 	guests.set(guestId, null);
 	res.json({ guestId, message: 'Guest Registered' });
-	//add some logic here to take them to the correct room
 
 });
 

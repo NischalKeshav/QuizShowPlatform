@@ -16,8 +16,8 @@
         });
 	async function getData(url) {
   try {
-    const response = await fetch(url);
-    if (!response.ok) { // Check for a successful status code (e.g., 200-299)
+			const response = await fetch(url, {method:'POST'});
+    if (!response.ok) { 
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const data = await response.json(); // Parse the response body as JSON
