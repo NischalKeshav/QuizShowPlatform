@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>slideHost</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    .slide-question { font-size:1.4rem; margin: 1rem 0; }
+    .choices { display:flex; flex-direction:column; gap:0.6rem; margin-bottom:0.8rem; }
+    .choice { padding:0.8rem; border-radius:0.6rem; background:#0f1025; border:1px solid rgba(255,255,255,0.03); }
+    .meta { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+    #timer { font-weight:700; }
+    #reveal { margin-top:0.8rem; }
+    #leaderboard { text-align:left; margin-top:0.8rem; }
+    .controls { margin-top:10px; }
+  </style>
+</head>
+<body>
+  <div class="card" style="max-width:900px;">
+    <div class="logo">Quiz Whiz</div>
+    <h1>Host Slide</h1>
+
+    <div class="meta">
+      <div>Code: <span id="token">—</span></div>
+      <div>Slide <span id="currentIdx">0</span>/<span id="totalSlides">0</span></div>
+      <div>Time: <span id="timer">0</span>s</div>
+    </div>
+
+    <div id="slideArea" style="margin-top:12px">
+      <div class="slide-question" id="question">No slide loaded.</div>
+      <div class="choices" id="choices"></div>
+      <div id="reveal"></div>
+    </div>
+
+    <div id="leaderboard"></div>
+
+    <div class="controls">
+      <button id="skipBtn">Skip (Reveal)</button>
+      <button id="nextBtn" style="margin-left:8px;">Next Slide</button>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      try {
+        const MAX_SLIDES = 20;
+        const DEFAULT_SLIDE_DURATION = 15;
+        const MAX_TIME_LIMIT = 60;
+        const slideDuration = Math.min(DEFAULT_SLIDE_DURATION, MAX_TIME_LIMIT);
+
+        const slides = [
+          { q: 'What is 2 + 2?', choices: ['3','4','5','22'], correct: 1 },
+          { q: 'Which color mixes with blue to make green?', choices: ['Red','Yellow','Black','White'], correct: 1 },
+          { q: 'Capital of France?', choices: ['Berlin','Madrid','Paris','Rome'], correct: 2 },
+          { q: 'Which planet is known as the Red Planet?', choices: ['Earth','Venus','Mars','Jupiter'], correct: 2 }
+        ];
+
+        let slideIndex = 0;
+        let timerInterval = null;
+        let inReveal = false;
+
+        const token = sessionStorage.getItem('hostToken') || localStorage.getItem('lastHostToken') || 'local-demo';
+        document.getElementById('token').textContent = token;
+        document.getElementById('totalSlides').textContent = Math.min(slides.length, MAX_SLIDES);
+
+        const answersKey = (idx) => `answers_${token}_${idx}`;
+        const scoresKey = () => `scores_${token}`;
+
+        function loadAnswers(idx) { try { return JSON.parse(localStorage.getItem(answersKey(idx))) || {}; } catch(e){ return {}; } }
+        function saveAnswers(idx, obj) { localStorage.setItem(answersKey(idx), JSON.stringify(obj)); }
+        function loadScores() { try { return JSON.parse(localStorage.getItem(scoresKey())) || {}; } catch(e){ return {}; } }
+        function saveScores(s) { localStorage.setItem(scoresKey(), JSON.stringify(s)); }
+
+        function renderQuestion(idx) {
+          const s = slides[idx];
+          document.getElementById('currentIdx').textContent = idx+1;
+          const qEl = document.getElementById('question'); if (qEl) qEl.textContent = s.q;
+          const choices = document.getElementById('choices'); if (!choices) return;
+          choices.innerHTML = '';
+          s.choices.forEach((c,i) => {
+            const d = document.createElement('div'); d.className='choice'; d.textContent = c; choices.appendChild(d);
+          });
+          const reveal = document.getElementById('reveal'); if (reveal) reveal.innerHTML = '';
+        }
+
+        function renderLeaderboard() {
+          const scores = loadScores();
+          const list = Object.keys(scores).map(n=>({n, s: scores[n]})).sort((a,b)=>b.s-a.s);
+          const el = document.getElementById('leaderboard');
+          if (!el) return;
+          if (list.length===0) { el.innerHTML = '<div style="color:var(--muted)">No scores yet.</div>'; return; }
+          el.innerHTML = '<strong>Leaderboard</strong><ol>' + list.map(it=>`<li>${it.n} — ${it.s}</li>`).join('') + '</ol>';
+        }
+
+        function startTimer(sec, onTick, onEnd) {
+          let t = sec; const timerEl = document.getElementById('timer'); if (timerEl) timerEl.textContent = t;
+          timerInterval && clearInterval(timerInterval);
+          timerInterval = setInterval(()=>{ t -= 1; if (timerEl) timerEl.textContent = t; onTick && onTick(t); if (t<=0) { clearInterval(timerInterval); timerInterval=null; onEnd && onEnd(); } }, 1000);
+        }
+
+        function revealAnswers(idx) {
+          inReveal = true;
+          const s = slides[idx];
+          const answers = loadAnswers(idx);
+          const correctIdx = s.correct;
+          const correctNames = Object.keys(answers).filter(n => Number(answers[n]) === correctIdx);
+          const scores = loadScores();
+          correctNames.forEach(n => { scores[n] = (scores[n]||0) + 1; });
+          saveScores(scores);
+
+          const reveal = document.getElementById('reveal');
+          if (reveal) reveal.innerHTML = `<div>Correct answer: <strong>${s.choices[correctIdx]}</strong></div>
+            <div style="margin-top:6px">Correct: ${correctNames.length ? correctNames.join(', ') : 'None'}</div>`;
+          renderLeaderboard();
+        }
+
+        async function runSlide(idx) {
+          inReveal = false;
+          renderQuestion(idx);
+          // clear answers for this slide
+          saveAnswers(idx, {});
+          // start timer and auto-reveal when time ends
+          await new Promise((res) => startTimer(slideDuration, null, res));
+          revealAnswers(idx);
+        }
+
+        // host runner (auto-started when host navigates here)
+        async function hostRun() {
+          saveScores({});
+          // run all slides sequentially but allow host to use skip/next
+          for (let i=0;i<Math.min(slides.length, MAX_SLIDES);i++){
+            slideIndex = i;
+            await runSlide(i);
+            // wait until host clicks Next to continue (or auto-continue after 4s)
+            await new Promise((resolve) => {
+              let moved = false;
+              const next = () => { if (!moved) { moved = true; document.getElementById('nextBtn').removeEventListener('click', next); resolve(); } };
+              document.getElementById('nextBtn').addEventListener('click', next);
+              // auto-advance after 4s
+              setTimeout(()=>{ next(); }, 4000);
+            });
+          }
+          alert('Quiz complete (host).');
+        }
+
+        // skip button: reveal immediately for current slide
+        document.getElementById('skipBtn').addEventListener('click', () => {
+          if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+          revealAnswers(slideIndex);
+        });
+
+        // next button: when host clicks, advance (used by runSlide loop listener)
+        // initial render
+        renderQuestion(0);
+        renderLeaderboard();
+
+        // auto-start if host navigated here after pressing Start Game
+        const hostStartKey = `gameStarted_${token}`;
+        if (localStorage.getItem(hostStartKey)) {
+          localStorage.removeItem(hostStartKey);
+          setTimeout(()=>{ hostRun(); }, 150);
+        }
+
+      } catch (err) {
+        console.error('slideHost init error', err);
+      }
+    });
+  </script>
+</body>
+</html>
