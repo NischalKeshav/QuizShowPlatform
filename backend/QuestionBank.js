@@ -8,13 +8,13 @@ export var BlankQuestionBank = {
 			IncorrectAnswers: ["6","7","1"],
 		},
 		{
-			Question:"What is 1+1",
-			CorrectAnswer: "2",
+			Question:"What is 1+2",
+			CorrectAnswer: "3",
 			IncorrectAnswers: ["6","7","1"],
 		},
 		{
-			Question:"What is 1+1",
-			CorrectAnswer: "2",
+			Question:"What is 1+3",
+			CorrectAnswer: "4",
 			IncorrectAnswers: ["6","7","1"],
 		}
 	]			

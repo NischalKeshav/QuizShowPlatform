@@ -3,9 +3,10 @@ import cors from 'cors';
 import http from 'http';
 import { Server } from 'socket.io'; 
 import crypto from 'crypto'; 
-import { BlankQuestionBank, ConvertServerQuestionToClientQuestion } from './QuestionBank';
+import { BlankQuestionBank, ConvertServerQuestionToClientQuestion } from './QuestionBank.js';
 
 const guests = new Map();
+const UserMap = new Map();
 
 function generateGuestId() {
   return crypto.randomUUID(); 
@@ -13,7 +14,6 @@ function generateGuestId() {
 
 const app = express();
 const port = 3000;
-
 const server = http.createServer(app);
 const io = new Server(server,{
 	connectionStateRecovery: {},
@@ -21,6 +21,7 @@ const io = new Server(server,{
 		origin:"*",
 	}
 }); 
+
 app.use(cors({
 	origin: '*',          
 	methods: ['GET', 'POST'],
@@ -30,49 +31,30 @@ app.get('/', (req, res) => {
 	res.send('api is running');
 });
 
-
 app.post('/register_guest', (req,res)=>{
 	const guestId = generateGuestId();
 	guests.set(guestId, null);
-	res.json({ guestId, message: 'Guest Registered' });
-
+	res.json({guestId: guestId, message: 'Guest Registered' });
 });
 
 io.on('connection', (socket) => {
-    console.log('A user connected');
-
-    socket.on('join_guest', (guestId) => {
-        if (guests.has(guestId)) {
-            socket.join(guestId); 
-
-            guests.set(guestId, socket.id); // Keep the map entry for tracking
-            socket.guestId = guestId; // Attach guestId to socket object for easy access on disconnect
-
-            console.log(`Guest ${guestId} joined with socket ${socket.id} and joined room ${guestId}`);
-            
-            socket.emit('joined_successfully', { guestId });
-        } else {
-            socket.emit('error_message', 'Invalid Guest ID');
-        }
-    });
-
-    socket.on('disconnect', () => {
- 		console.log('User disconnected');
-        if (socket.guestId) {
-            guests.set(socket.guestId, null);
-        }
-    });
+	console.log('A user connected');
+	socket.on('create_user',(msg)=>{
+		const guestId = generateGuestId();
+		UserMap.set(guestId,{name:msg.name,socketID:socket.id});
+		console.log('New User at ',UserMap.get(guestId));
+	});
 });
 
 setInterval(() => {
-  guests.forEach((socketId, guestId) => {
-    if (socketId) {
-      io.to(socketId).emit('continuous_update', { message: `Update for ${guestId} at ${new Date().toISOString()}` });
-    }
-  });
+  io.emit('continuous_update', { message: 'update' }); 
+  UserMap.forEach((UserData,UserID)=>{
+	io.to(UserData.socketID).emit("question_send", BlankQuestionBank.Questions[0] )
+	console.log(BlankQuestionBank.Questions[0],UserData.socketID);
+
+  })
 }, 5000);
 
 server.listen(port, () => {
-  console.log(`Example app listening on port ${port}`);
+  console.log(`Example app listening on port ${port}`); 
 });
-
