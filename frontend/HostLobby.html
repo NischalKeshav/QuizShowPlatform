@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Host Lobby</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="card">
+    <div class="logo">Quiz Whiz</div>
+    <h1>Players Lobby</h1>
+    <p>Code: <span id="lobbyToken" style="font-weight:bold">—</span></p>
+
+    <div style="margin:12px 0; text-align:left;">
+      <strong>Players joined</strong>
+      <ul id="playerList" style="margin-top:8px; padding-left:1.1rem;"></ul>
+      <p id="noPlayers" style="color:var(--muted)">No players have joined yet.</p>
+    </div>
+
+    <p style="margin-top:18px;">
+      <button id="hostStartBtn">Start Game</button>
+    </p>
+  </div>
+
+  <script>
+    function getToken() {
+      // prefer sessionStorage (from host), fallback to last-used token in localStorage
+      return sessionStorage.getItem('hostToken') || localStorage.getItem('lastHostToken') || null;
+    }
+
+    function loadPlayers(token) {
+      if (!token) return [];
+      const key = `players_${token}`;
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) { return []; }
+    }
+
+    function savePlayers(token, players) {
+      const key = `players_${token}`;
+      localStorage.setItem(key, JSON.stringify(players));
+    }
+
+    function renderPlayers(players) {
+      const list = document.getElementById('playerList');
+      list.innerHTML = '';
+      if (!players || players.length === 0) {
+        document.getElementById('noPlayers').style.display = 'block';
+        return;
+      }
+      document.getElementById('noPlayers').style.display = 'none';
+      players.forEach((p, i) => {
+        const li = document.createElement('li');
+        li.textContent = p;
+        list.appendChild(li);
+      });
+    }
+
+    // init
+    const token = getToken();
+    const lobbyToken = document.getElementById('lobbyToken');
+    if (!token) {
+      lobbyToken.textContent = 'No token found';
+      document.getElementById('noPlayers').textContent = 'No host token found. Return to host page and generate a code.';
+      const _simEl = document.getElementById('simulateJoin');
+      if (_simEl) _simEl.disabled = true;
+      document.getElementById('hostStartBtn').disabled = true;
+    } else {
+      lobbyToken.textContent = token;
+      // remember last token for reloads
+      localStorage.setItem('lastHostToken', token);
+      renderPlayers(loadPlayers(token));
+    }
+
+    const _simBtn = document.getElementById('simulateJoin');
+    if (_simBtn) {
+      _simBtn.addEventListener('click', () => {
+        const nameInput = document.getElementById('simulateName');
+        const name = (nameInput && (nameInput.value || '').trim()) || '';
+        if (!name) return alert('Enter a name to simulate.');
+        const players = loadPlayers(token);
+        players.push(name);
+        savePlayers(token, players);
+        renderPlayers(players);
+        if (nameInput) nameInput.value = '';
+        // notify other tabs
+        localStorage.setItem(`players_updated_${token}`, Date.now());
+      });
+    }
+
+    // update when storage changes (other tabs/windows)
+    window.addEventListener('storage', (e) => {
+      if (!token) return;
+      if (e.key === `players_${token}` || e.key === `players_updated_${token}`) {
+        renderPlayers(loadPlayers(token));
+      }
+    });
+
+    document.getElementById('hostStartBtn').addEventListener('click', () => {
+      if (!token) return alert('No host token found.');
+      const players = loadPlayers(token);
+      if (!players || players.length === 0) {
+        if (!confirm('No players joined yet. Start anyway?')) return;
+      }
+      // mark game started for this token
+      localStorage.setItem(`gameStarted_${token}`, Date.now());
+      // navigate to host slide view
+      window.location.href = 'slideHost.html';
+    });
+  </script>
+</body>
+</html>
