@@ -6,29 +6,13 @@
     <title>Socket.IO Test</title>
 </head>
 <body>
+	clanka
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <script>
 	const serverURL = ""
         const socket = io('http://localhost:3000/');
-        
-        socket.on('connect', () => {
-            console.log('Connected to server');
-        });
-	async function getData(url) {
-  try {
-			const response = await fetch(url, {method:'POST'});
-    if (!response.ok) { 
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const data = await response.json(); // Parse the response body as JSON
-    console.log(data);
-  } catch (error) {
-    console.error('Error fetching data:', error);
-  }
-}
-
-	console.log(getData('http://localhost:3000/register_guest'));
-
+	socket.emit('create_user',{name:"Hitori Gotoh"});
+	socket.on("question_send",(msg)=>{"question",console.log(msg);});
     </script>
 </body>
 </html>
