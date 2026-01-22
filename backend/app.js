@@ -43,13 +43,14 @@ io.on('connection', (socket) => {
 		const guestId = generateGuestId();
 		UserMap.set(guestId,{name:msg.name,socketID:socket.id});
 		console.log('New User at ',UserMap.get(guestId));
+		socket.emit("user_confirmation", {UserData:UserMap.get(guestId)});
 	});
 });
 
 setInterval(() => {
   io.emit('continuous_update', { message: 'update' }); 
   UserMap.forEach((UserData,UserID)=>{
-	io.to(UserData.socketID).emit("question_send", BlankQuestionBank.Questions[0] )
+	io.to(UserData.socketID).emit("question_send", ConvertServerQuestionToClientQuestion(BlankQuestionBank.Questions[0]) )
 	console.log(BlankQuestionBank.Questions[0],UserData.socketID);
 
   })
