@@ -34,7 +34,7 @@
         const roomCode = sessionStorage.getItem('roomCode');
         if (!name || !roomCode) return;
 
-        const socket = io('https://quizshowplatform-2.onrender.com'); // Assuming backend on localhost:3000
+         const socket = io('http://localhost:3000'); // Assuming backend on localhost:3000
 
         socket.emit('join_room', { roomCode, name });
 
