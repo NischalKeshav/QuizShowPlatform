@@ -48,174 +48,79 @@
 
 	</div>
 
+	<script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
 	<script>
-		// run after DOM loaded
 		window.addEventListener('DOMContentLoaded', () => {
-			try {
-				// Config
-				const MAX_SLIDES = 20;
-				const DEFAULT_SLIDE_DURATION = 15; // seconds per question
-				const MAX_TIME_LIMIT = 60; // cap
-				const slideDuration = Math.min(DEFAULT_SLIDE_DURATION, MAX_TIME_LIMIT);
+			const socket = io('http://localhost:3000');
+			const roomCode = sessionStorage.getItem('roomCode');
+			const userId = sessionStorage.getItem('userId');
 
-				// Slides (4 questions)
-				const slides = [
-					{ q: 'What is 2 + 2?', choices: ['3','4','5','22'], correct: 1 },
-					{ q: 'Which color mixes with blue to make green?', choices: ['Red','Yellow','Black','White'], correct: 1 },
-					{ q: 'Capital of France?', choices: ['Berlin','Madrid','Paris','Rome'], correct: 2 },
-					{ q: 'Which planet is known as the Red Planet?', choices: ['Earth','Venus','Mars','Jupiter'], correct: 2 }
-				];
+			let currentQuestionIndex = 0;
+			let timerInterval = null;
 
-				// state
-				let slideIndex = 0;
-				let timerInterval = null;
-				let started = false;
+			document.getElementById('token').textContent = roomCode || '—';
+			document.getElementById('totalSlides').textContent = '—'; // Will update when quiz starts
 
-				// token from host/session
-				const token = sessionStorage.getItem('hostToken') || localStorage.getItem('lastHostToken') || 'local-demo';
-				document.getElementById('token').textContent = token;
-				document.getElementById('totalSlides').textContent = Math.min(slides.length, MAX_SLIDES);
-
-				// storage keys
-				const answersKey = (idx) => `answers_${token}_${idx}`;
-				const scoresKey = () => `scores_${token}`;
-
-				function loadAnswers(idx) { try { return JSON.parse(localStorage.getItem(answersKey(idx))) || {}; } catch(e){ return {}; } }
-				function saveAnswers(idx, obj) { localStorage.setItem(answersKey(idx), JSON.stringify(obj)); }
-				function loadScores() { try { return JSON.parse(localStorage.getItem(scoresKey())) || {}; } catch(e){ return {}; } }
-				function saveScores(s) { localStorage.setItem(scoresKey(), JSON.stringify(s)); }
-
-				function renderLeaderboard() {
-					const scores = loadScores();
-					const list = Object.keys(scores).map(n => ({ n, s: scores[n] })).sort((a,b)=>b.s-a.s);
-					const el = document.getElementById('leaderboard');
-					if (!el) return;
-					if (list.length === 0) { el.innerHTML = '<div class="small">No scores yet.</div>'; return; }
-					el.innerHTML = '<strong>Leaderboard</strong><ol>' + list.map(it=>`<li>${it.n} — ${it.s}</li>`).join('') + '</ol>';
-				}
-
-				function renderSlide(idx) {
-					const s = slides[idx];
-					document.getElementById('currentIdx').textContent = idx+1;
-					const qEl = document.getElementById('question'); if (qEl) qEl.textContent = s.q;
-					const choices = document.getElementById('choices'); if (!choices) return;
-					choices.innerHTML = '';
-					s.choices.forEach((c, i) => {
-						const btn = document.createElement('div');
-						btn.className = 'choice';
-						btn.textContent = c;
-						btn.dataset.idx = i;
-						btn.addEventListener('click', () => {
-							// prompt for name if not stored, then submit
-							let pname = sessionStorage.getItem('playerName');
-							if (!pname) {
-								pname = prompt('Enter your name to submit this answer') || `Player-${Date.now()}`;
-								sessionStorage.setItem('playerName', pname);
-							}
-							const ans = loadAnswers(slideIndex);
-							ans[pname] = i;
-							saveAnswers(slideIndex, ans);
-							// notify other tabs
-							localStorage.setItem(`players_answered_${token}_${slideIndex}`, Date.now());
-							const reveal = document.getElementById('reveal');
-							if (reveal) reveal.innerHTML = `<div class="small">Answer submitted as <strong>${pname}</strong></div>`;
-							// local highlight
-							document.querySelectorAll('.choice').forEach(el=>el.classList.remove('selected'));
-							btn.classList.add('selected');
-						});
-						choices.appendChild(btn);
+			socket.on('new_question', (data) => {
+				currentQuestionIndex = data.questionIndex;
+				document.getElementById('currentIdx').textContent = currentQuestionIndex + 1;
+				document.getElementById('totalSlides').textContent = '—'; // Assume unknown total
+				document.getElementById('question').textContent = data.question.Question;
+				const choicesEl = document.getElementById('choices');
+				choicesEl.innerHTML = '';
+				data.question.Choices.forEach((choice, idx) => {
+					const btn = document.createElement('div');
+					btn.className = 'choice';
+					btn.textContent = choice;
+					btn.addEventListener('click', () => {
+						socket.emit('submit_answer', { roomCode, userId, answerIndex: idx });
+						document.querySelectorAll('.choice').forEach(el => el.classList.remove('selected'));
+						btn.classList.add('selected');
+						document.getElementById('reveal').innerHTML = '<div class="small">Answer submitted.</div>';
 					});
-
-					const reveal = document.getElementById('reveal'); if (reveal) reveal.innerHTML = '';
-
-					// update simulate select
-					const simSel = document.getElementById('simChoice');
-					if (simSel) { simSel.innerHTML = ''; s.choices.forEach((c,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=c; simSel.appendChild(o); }); }
-				}
-
-				function startTimer(sec, onTick, onEnd) {
-					let t = sec;
-					const timerEl = document.getElementById('timer'); if (timerEl) timerEl.textContent = t;
-					timerInterval && clearInterval(timerInterval);
-					timerInterval = setInterval(()=>{
-						t -= 1;
-						if (timerEl) timerEl.textContent = t;
-						onTick && onTick(t);
-						if (t <= 0) { clearInterval(timerInterval); timerInterval = null; onEnd && onEnd(); }
-					}, 1000);
-				}
-
-				function revealAnswers(idx) {
-					const s = slides[idx];
-					const answers = loadAnswers(idx);
-					const correctIdx = s.correct;
-					const correctNames = Object.keys(answers).filter(n => Number(answers[n]) === correctIdx);
-
-					// update scores
-					const scores = loadScores();
-					correctNames.forEach(n => { scores[n] = (scores[n]||0) + 1; });
-					saveScores(scores);
-
-					const reveal = document.getElementById('reveal');
-					if (reveal) reveal.innerHTML = `<div>Correct answer: <strong>${s.choices[correctIdx]}</strong></div>
-						<div style="margin-top:6px">Correct: ${correctNames.length ? correctNames.join(', ') : 'None'}</div>`;
-
-					renderLeaderboard();
-				}
-
-				async function runSlide(idx) {
-					renderSlide(idx);
-					// clear stored answers for this slide so only fresh answers count
-					saveAnswers(idx, {});
-					// start timer
-					await new Promise((res) => startTimer(slideDuration, null, res));
-					// reveal
-					revealAnswers(idx);
-					// pause before next
-					await new Promise(r => setTimeout(r, 4000));
-				}
-
-				async function startQuiz() {
-					if (started) return; started = true;
-					const startBtn = document.getElementById('startBtn'); if (startBtn) startBtn.disabled = true;
-					const nextBtn = document.getElementById('nextBtn'); if (nextBtn) nextBtn.style.display = 'inline-block';
-					for (let i=0;i<Math.min(slides.length, MAX_SLIDES);i++){
-						slideIndex = i;
-						await runSlide(i);
-					}
-					const startBtn2 = document.getElementById('startBtn'); if (startBtn2) startBtn2.disabled = false;
-					if (nextBtn) nextBtn.style.display = 'none';
-					alert('Quiz complete.');
-				}
-
-				// removed join button, simulate controls, and host/next buttons for player view
-				// clicking a choice now prompts for a name (if not set) and submits the answer
-
-				// storage listener so multiple tabs/devices on same browser can update
-				window.addEventListener('storage', (e)=>{
-					if (!e.key) return;
-					if (e.key === answersKey(slideIndex) || e.key === `players_answered_${token}_${slideIndex}`) renderPlayersAnswers();
-					if (e.key === scoresKey()) renderLeaderboard();
+					choicesEl.appendChild(btn);
 				});
+				document.getElementById('reveal').innerHTML = '';
+				startTimer(data.timeLimit);
+			});
 
-				function renderPlayersAnswers() {
-					const answers = loadAnswers(slideIndex);
-					const reveal = document.getElementById('reveal'); if (!reveal) return;
-					const names = Object.keys(answers);
-					if (names.length === 0) { if (!reveal.innerHTML) reveal.innerHTML = '<div class="small">No answers yet.</div>'; return; }
-					reveal.innerHTML = '<div><strong>Answers submitted:</strong></div><ul style="text-align:left;margin-top:6px">' + names.map(n=>`<li>${n}: ${slides[slideIndex].choices[Number(answers[n])] || answers[n]}</li>`).join('') + '</ul>';
+			socket.on('reveal_answers', (data) => {
+				clearInterval(timerInterval);
+				document.getElementById('timer').textContent = '0';
+				let revealText = `<div>Correct answer: <strong>${data.correctAnswer}</strong></div>`;
+				if (data.correctNames.length > 0) {
+					revealText += `<div style="margin-top:6px">Correct: ${data.correctNames.join(', ')}</div>`;
 				}
+				document.getElementById('reveal').innerHTML = revealText;
+			});
 
-				// initial render and auto-start immediately for player-side
-				renderSlide(0);
-				renderLeaderboard();
-				renderPlayersAnswers();
+			socket.on('leaderboard_update', (data) => {
+				const leaderboard = data.leaderboard;
+				const el = document.getElementById('leaderboard');
+				if (leaderboard.length === 0) {
+					el.innerHTML = '<div class="small">No scores yet.</div>';
+					return;
+				}
+				el.innerHTML = '<strong>Leaderboard</strong><ol>' + leaderboard.map(([name, score]) => `<li>${name} — ${score}</li>`).join('') + '</ol>';
+			});
 
-				// auto start immediately upon opening (player side)
-				setTimeout(()=>{ try { startQuiz(); } catch(e) { console.error(e); } }, 120);
+			function startTimer(sec) {
+				let t = sec;
+				document.getElementById('timer').textContent = t;
+				timerInterval && clearInterval(timerInterval);
+				timerInterval = setInterval(() => {
+					t -= 1;
+					document.getElementById('timer').textContent = t;
+					if (t <= 0) {
+						clearInterval(timerInterval);
+						timerInterval = null;
+					}
+				}, 1000);
+			}
 
-			} catch (err) {
-				console.error('Slide init error', err);
+			// Connect and join if not already
+			if (roomCode && userId) {
+				socket.emit('rejoin_room', { roomCode, userId }); // Assume we add this event if needed
 			}
 		});
 	</script>

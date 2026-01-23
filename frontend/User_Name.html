@@ -19,9 +19,36 @@
       autofocus
     />
 
-    <button>Join Game</button>
+   <button>Join Game</button>
 
-    <div class="hint">No real names required 😉</div>
-  </div>
-</body>
+     <div class="hint">No real names required 😉</div>
+   </div>
+
+   <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+   <script>
+     const nameInput = document.querySelector('.name-input');
+     const joinButton = document.querySelector('button');
+
+     joinButton.addEventListener('click', () => {
+       const name = nameInput.value.trim();
+       const roomCode = sessionStorage.getItem('roomCode');
+       if (!name || !roomCode) return;
+
+       const socket = io('http://localhost:3000'); // Assuming backend on localhost:3000
+
+       socket.emit('join_room', { roomCode, name });
+
+       socket.on('room_joined', (data) => {
+         sessionStorage.setItem('userId', data.userId);
+         sessionStorage.setItem('roomCode', data.roomCode);
+         // Navigate to player slide view
+         window.location.href = 'Slide.html';
+       });
+
+       socket.on('join_error', (data) => {
+         alert(data.message);
+       });
+     });
+   </script>
+ </body>
 </html>

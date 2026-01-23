@@ -25,22 +25,37 @@
     <div class="error">Invalid game code. Please try again.</div>
   </div>
 
-  <script>
-    const inputs = document.querySelectorAll('.code-inputs input');
+   <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+   <script>
+     const inputs = document.querySelectorAll('.code-inputs input');
+     const joinButton = document.querySelector('button');
+     const errorDiv = document.querySelector('.error');
 
-    inputs.forEach((input, index) => {
-      input.addEventListener('input', () => {
-        if (input.value && index < inputs.length - 1) {
-          inputs[index + 1].focus();
-        }
-      });
+     inputs.forEach((input, index) => {
+       input.addEventListener('input', () => {
+         if (input.value && index < inputs.length - 1) {
+           inputs[index + 1].focus();
+         }
+       });
 
-      input.addEventListener('keydown', (e) => {
-        if (e.key === 'Backspace' && !input.value && index > 0) {
-          inputs[index - 1].focus();
-        }
-      });
-    });
-  </script>
+       input.addEventListener('keydown', (e) => {
+         if (e.key === 'Backspace' && !input.value && index > 0) {
+           inputs[index - 1].focus();
+         }
+       });
+     });
+
+     joinButton.addEventListener('click', () => {
+       const code = Array.from(inputs).map(input => input.value).join('');
+       if (code.length !== 6) {
+         errorDiv.style.display = 'block';
+         errorDiv.textContent = 'Please enter a 6-digit code.';
+         return;
+       }
+       // Store code and navigate to name entry
+       sessionStorage.setItem('roomCode', code);
+       window.location.href = 'User_Name.html';
+     });
+   </script>
 </body>
 </html>
