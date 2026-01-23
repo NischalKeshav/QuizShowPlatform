@@ -31,26 +31,28 @@ app.get('/', (req, res) => {
 	res.send('api is running');
 });
 
-app.post('/register_guest', (req,res)=>{
-	const guestId = generateGuestId();
-	guests.set(guestId, null);
-	res.json({guestId: guestId, message: 'Guest Registered' });
-});
-
 io.on('connection', (socket) => {
 	console.log('A user connected');
 	socket.on('create_user',(msg)=>{
 		const guestId = generateGuestId();
 		UserMap.set(guestId,{name:msg.name,socketID:socket.id});
 		console.log('New User at ',UserMap.get(guestId));
+		socket.emit("user_confirmation", {UserID:guestId,UserData:UserMap.get(guestId)});
+	});
+	socket.on('reconnect_user',(msg)=>{
+		console.log("reconnection");
+		if (msg.UserID){
+			const Switch = UserMap.get(msg.UserID);
+			Switch.socketID=socket.id;
+		}
 	});
 });
 
 setInterval(() => {
   io.emit('continuous_update', { message: 'update' }); 
   UserMap.forEach((UserData,UserID)=>{
-	io.to(UserData.socketID).emit("question_send", BlankQuestionBank.Questions[0] )
-	console.log(BlankQuestionBank.Questions[0],UserData.socketID);
+	io.to(UserData.socketID).emit("question_send", ConvertServerQuestionToClientQuestion(BlankQuestionBank.Questions[0]) )
+		
 
   })
 }, 5000);

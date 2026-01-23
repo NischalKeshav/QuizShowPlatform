@@ -9,10 +9,39 @@
 	clanka
     <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
     <script>
+		function getCookie(cname) {
+	  let name = cname + "=";
+	  let decodedCookie = decodeURIComponent(document.cookie);
+	  let ca = decodedCookie.split(';');
+	  for(let i = 0; i <ca.length; i++) {
+	    let c = ca[i];
+	    while (c.charAt(0) == ' ') {
+	      c = c.substring(1);
+	    }
+	    if (c.indexOf(name) == 0) {
+      return c.substring(name.length, c.length);
+    }
+  }
+  return "";
+}
+    </script>
+    <script>
 	const serverURL = ""
         const socket = io('http://localhost:3000/');
-	socket.emit('create_user',{name:"Hitori Gotoh"});
-	socket.on("question_send",(msg)=>{"question",console.log(msg);});
+	if(getCookie("UserID")){
+		socket.emit("user_reconnect",getCookie("UserID"));
+		console.log("reconnecting");
+	}else{
+		console.log("create_user");
+		socket.emit('create_user',{name:"Hitori Gotoh"});
+		let  UserID;
+		socket.on('user_confirmation',(msg)=>{
+			UserID=msg.UserID;
+			console.log("userconfirmation",msg);
+			console.log("userID:", UserID);
+			document.cookie = "UserID="+UserID;
+		});
+	}
     </script>
 </body>
 </html>
