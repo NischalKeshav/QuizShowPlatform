@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { BlankQuestionBank, ConvertServerQuestionToClientQuestion } from './QuestionBank.js';
 
 // Map of room codes to room objects
