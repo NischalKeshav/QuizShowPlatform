@@ -8,7 +8,7 @@ RUN apk add --no-cache curl
 WORKDIR /app
 
 # Copy package files
-COPY package*.json ./
+COPY backend/package*.json ./
 
 # Install dependencies
 RUN npm ci --only=production
@@ -18,7 +18,7 @@ RUN addgroup -g 1001 -S nodejs
 RUN adduser -S nodejs -u 1001
 
 # Copy source code
-COPY . .
+COPY backend/ .
 
 # Change ownership
 RUN chown -R nodejs:nodejs /app
