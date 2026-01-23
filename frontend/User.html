@@ -41,6 +41,14 @@
         }
       });
     });
+    
+      joinBtn.addEventListener('click', () => {
+    if (!isCodeComplete()) return;
+
+    // TEMP: front-end navigation only
+    window.location.href = 'User_Name.html';
+  });
   </script>
 </body>
 </html>
+
